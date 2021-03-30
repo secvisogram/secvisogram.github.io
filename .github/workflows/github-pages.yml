@@ -1,0 +1,51 @@
+# This syncs the GitHub Pages from the repo and presents it at https://secvisogram.github.io
+
+name: Secvisogram Website
+
+# Run only on schedule and manually
+on: 
+  workflow_dispatch:
+  schedule:
+     - cron:  '37 6 * * *'
+
+env:
+  RUN_NEEDED: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check whether run is needed
+        if: ${{ github.event_name != 'workflow_dispatch' }}
+        run: |
+             cd /tmp
+             curl https://raw.githubusercontent.com/secvisogram/secvisogram.github.io/gh-pages/COMMITHASH > COMMITHASH.current
+             curl https://raw.githubusercontent.com/secvisogram/secvisogram/gh-pages/COMMITHASH > COMMITHASH.source
+             echo "Difference of Lines"
+             bash -c 'diff COMMITHASH.current COMMITHASH.source | wc -l'
+             test ` bash -c 'diff COMMITHASH.current COMMITHASH.source | wc -l' ` -eq 0 && echo "RUN_NEEDED=false" >> $GITHUB_ENV
+             cd $GITHUB_WORKSPACE
+      - name: Checkout current repo
+        if: ${{ env.RUN_NEEDED == 'true' }}
+        uses: actions/checkout@v2
+      - name: Checkout built GitHub Pages from Secvisogram repo
+        if: ${{ env.RUN_NEEDED == 'true' }}
+        uses: actions/checkout@v2
+        with:
+           repository: secvisogram/secvisogram
+           ref: gh-pages
+           path: build
+      - name: Remove .git directory to allow further process
+        if: ${{ env.RUN_NEEDED == 'true' }}
+        run: |
+             cd build
+             rm -rf .git             
+      - name: Deploy to GitHub Pages
+        if: ${{ env.RUN_NEEDED == 'true' }}
+        uses: crazy-max/ghaction-github-pages@v2
+        with:
+          repo: secvisogram/secvisogram.github.io
+          target_branch: gh-pages
+          build_dir: build
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
