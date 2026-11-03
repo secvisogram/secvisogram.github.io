@@ -26,13 +26,24 @@ jobs:
       - name: Check whether run is needed
         if: ${{ github.event_name == 'schedule' }}
         run: |
-          cd "$RUNNER_TEMP"
-          curl -sf https://raw.githubusercontent.com/secvisogram/secvisogram.github.io/gh-pages/COMMITHASH > app.current || : > app.current
-          curl -sf https://raw.githubusercontent.com/secvisogram/secvisogram/gh-pages/COMMITHASH > app.source || : > app.source
-          curl -sf https://raw.githubusercontent.com/secvisogram/secvisogram.github.io/gh-pages/PROVIDER_COMMITHASH > provider.current || : > provider.current
-          git ls-remote https://github.com/secvisogram/csaf-files.git refs/heads/gh-pages | cut -f1 > provider.source
-          if test -s provider.source && cmp -s app.current app.source && cmp -s provider.current provider.source; then
-            echo "RUN_NEEDED=false" >> $GITHUB_ENV
+          app_current="$(curl -fsSL https://raw.githubusercontent.com/secvisogram/secvisogram.github.io/gh-pages/COMMITHASH)" || {
+            echo "Failed to fetch current app hash from the Pages repo; scheduling deploy."
+            exit 0
+          }
+          app_source="$(curl -fsSL https://raw.githubusercontent.com/secvisogram/secvisogram/gh-pages/COMMITHASH)" || {
+            echo "Failed to fetch app source hash from the source repo; scheduling deploy."
+            exit 0
+          }
+          provider_current="$(curl -fsSL https://raw.githubusercontent.com/secvisogram/secvisogram.github.io/gh-pages/PROVIDER_COMMITHASH)" || {
+            echo "Failed to fetch current provider hash from the Pages repo; scheduling deploy."
+            exit 0
+          }
+          provider_source="$(git ls-remote https://github.com/secvisogram/csaf-files.git refs/heads/gh-pages | cut -f1)" || {
+            echo "Failed to fetch provider source hash from csaf-files; scheduling deploy."
+            exit 0
+          }
+          if [ -n "$provider_source" ] && [ "$app_current" = "$app_source" ] && [ "$provider_current" = "$provider_source" ]; then
+            echo "RUN_NEEDED=false" >> "$GITHUB_ENV"
           fi
       - name: Checkout current repo
         if: ${{ env.RUN_NEEDED == 'true' }}
